@@ -17,6 +17,7 @@ projet-cashflow-engine/
 │   |   └── SFG_Application_Gestion_Finances.pdf   # Spécifications Fonctionnelles Générales
 |   └── sfd
 |       └── SFD_Application_Gestion_Finances.pdf   # Spécifications Fonctionnelles Détaillées
+|
 ├── 3_Conception/
 │   ├── Diagrammes_Vision_et_Cadrage/
 │   │   ├── Diagramme_Contexte.puml
