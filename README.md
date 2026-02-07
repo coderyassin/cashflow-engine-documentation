@@ -1,4 +1,4 @@
-# 📁 README – Application de Gestion des Flux Financiers
+# Application de Gestion des Flux Financiers
 
 Ce répertoire contient tous les documents de **cadrage, conception et spécifications** pour le projet de l’application de gestion des flux financiers.
 
