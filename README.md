@@ -67,7 +67,7 @@ Contient **tous les diagrammes UML et techniques**, organisés par catégorie :
 4. Architecture : diagramme logique, diagramme de composants, diagramme de déploiement
 5. Données : ERD, DFD
 
-### 3_Security (Authentication & Authorization)
+### 4_Security
 La sécurité de l’application repose sur une architecture **OAuth2 / OpenID Connect** avec un **Identity Provider centralisé (Keycloak)**, conforme aux standards du marché et adaptée à une application financière grand public.
 
 ---
