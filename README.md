@@ -42,7 +42,11 @@ projet-cashflow-engine/
 │       └── Diagramme_DFD-Ajouter-une-Depense.puml
 |
 └── 4_Security/
-    └── SECURITY_AUTHENTIFICATION_ET_AUTORISATION.md
+|   └── SECURITY_AUTHENTIFICATION_ET_AUTORISATION.md
+|
+└── 5_Architecture/
+    └── ARCHITECTURE_HEXAGONALE_BACKEND_SPRING_BOOT.md
+
 ```
 
 ---
@@ -69,6 +73,9 @@ Contient **tous les diagrammes UML et techniques**, organisés par catégorie :
 
 ### 4_Security
 La sécurité de l’application repose sur une architecture **OAuth2 / OpenID Connect** avec un **Identity Provider centralisé (Keycloak)**, conforme aux standards du marché et adaptée à une application financière grand public.
+
+### 5_Architecture
+Contient l’**architecture hexagonale** adoptée pour la partie backend de l’application de gestion des flux financiers.
 
 ---
 
