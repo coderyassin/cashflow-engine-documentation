@@ -1,0 +1,24 @@
+@startuml
+title Diagramme de Flux de Données – Ajouter une Dépense
+
+actor "Utilisateur" as U
+rectangle "Angular UI" as UI
+rectangle "REST API" as API
+rectangle "Expense Service" as ES
+rectangle "Budget Service" as BS
+rectangle "Notification Service" as NS
+database "PostgreSQL" as DB
+
+U --> UI : Saisie dépense
+UI --> API : POST /expenses
+API --> ES : createExpense(data)
+ES --> DB : Enregistrer dépense
+ES --> BS : Mettre à jour budget
+BS --> DB : Update budget
+BS --> NS : Vérifier seuil
+NS --> U : Alerte si nécessaire
+ES --> API : Confirmation
+API --> UI : Affichage confirmation
+UI --> U : Feedback
+
+@enduml

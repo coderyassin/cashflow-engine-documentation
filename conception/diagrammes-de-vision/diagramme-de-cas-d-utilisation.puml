@@ -1,0 +1,23 @@
+@startuml
+title Diagramme de Cas d’Utilisation – Gestion Financière
+
+actor Utilisateur
+actor Administrateur
+
+rectangle "Application de Gestion des Flux Financiers" {
+
+  Utilisateur -- (Gérer revenus)
+  Utilisateur -- (Gérer dépenses)
+  Utilisateur -- (Gérer catégories)
+  Utilisateur -- (Gérer budgets)
+  Utilisateur -- (Consulter tableau de bord)
+  Utilisateur -- (Simuler scénario financier)
+  Utilisateur -- (Gérer objectifs financiers)
+  Utilisateur -- (Recevoir alertes)
+
+  Administrateur -- (Gérer utilisateurs)
+  Administrateur -- (Paramétrer l’application)
+  Administrateur -- (Superviser les données)
+}
+
+@enduml

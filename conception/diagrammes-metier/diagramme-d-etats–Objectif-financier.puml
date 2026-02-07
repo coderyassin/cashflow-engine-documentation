@@ -1,0 +1,13 @@
+@startuml
+title Diagramme d'États – Objectif Financier
+
+[*] --> Cree
+
+Cree --> EnCours : Premier versement
+EnCours --> Atteint : Montant cible atteint
+EnCours --> Echoue : Date dépassée
+
+Atteint --> [*]
+Echoue --> [*]
+
+@enduml

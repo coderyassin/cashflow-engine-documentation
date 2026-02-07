@@ -1,0 +1,71 @@
+@startuml
+title Diagramme de Classes Métier – Gestion Financière
+
+class User {
+  id
+  name
+  email
+  currency
+}
+
+class Account {
+  id
+  name
+  balance
+}
+
+class Income {
+  id
+  amount
+  date
+  frequency
+  source
+}
+
+class Expense {
+  id
+  amount
+  date
+  recurring
+}
+
+class Category {
+  id
+  name
+  type
+}
+
+class Budget {
+  id
+  limitAmount
+  period
+  currentAmount
+}
+
+class FinancialObjective {
+  id
+  targetAmount
+  currentAmount
+  targetDate
+  status
+}
+
+class Forecast {
+  id
+  startDate
+  endDate
+  projectedBalance
+}
+
+User "1" -- "1..*" Account : owns
+Account "1" -- "0..*" Income
+Account "1" -- "0..*" Expense
+
+Expense "1" -- "1" Category
+Budget "1" -- "1" Category
+Account "1" -- "0..*" Budget
+
+User "1" -- "0..*" FinancialObjective
+Account "1" -- "0..*" Forecast
+
+@enduml

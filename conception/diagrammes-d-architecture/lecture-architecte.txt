@@ -1,0 +1,42 @@
+🏗️ Choix d’infrastructure
+
+⏰ Runtime
+  . Docker
+  . Kubernetes
+  . Horizontal scaling backend
+  . Angular servi par Nginx ou CDN
+
+♻️ Environnements
+  . dev
+  . staging
+  . prod
+
+---------------------------------------------------------------------------------
+
+🔁 CI/CD 
+
+🧪 Pipeline backend 
+  1) Checkout
+  2) Build Maven
+  3) Tests unitaires
+  4) Tests d’intégration (Testcontainers + PostgreSQL)
+  5) Sonar / Quality Gate
+  6) Build image Docker
+  7) Push registry
+  8) Déploiement
+
+🧪 Pipeline frontend
+  1) Checkout
+  2) Build
+  3) Tests
+  4) Build image Nginx 
+  5) Push registry
+  6) Déploiement
+
+---------------------------------------------------------------------------------
+
+🔧 Stack CI/CD
+  . GitHub Actions / GitLab CI
+  . Docker Registry
+  . ArgoCD
+  . Helm charts

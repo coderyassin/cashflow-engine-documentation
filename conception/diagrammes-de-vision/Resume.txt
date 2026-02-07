@@ -1,0 +1,4 @@
+| Diagramme                      | Rôle                          |
+| ------------------------------ | ----------------------------- |
+| Diagramme de contexte          | Vision globale du système     |
+| Diagramme de cas d’utilisation | Vue fonctionnelle utilisateur |

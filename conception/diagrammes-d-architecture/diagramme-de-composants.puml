@@ -1,0 +1,36 @@
+@startuml
+title Diagramme de Composants – Backend Spring Boot
+
+package "Inbound Adapters" {
+  [REST API]
+  [Security Adapter]
+}
+
+package "Application Layer" {
+  [Use Case Services]
+}
+
+package "Domain Layer" {
+  [Entities]
+  [Domain Services]
+}
+
+package "Outbound Adapters" {
+  [JPA Adapter]
+  [Notification Adapter]
+}
+
+database PostgreSQL
+
+[REST API] --> [Use Case Services]
+[Security Adapter] --> [REST API]
+
+[Use Case Services] --> [Domain Services]
+[Domain Services] --> [Entities]
+
+[Use Case Services] --> [JPA Adapter]
+[JPA Adapter] --> PostgreSQL
+
+[Use Case Services] --> [Notification Adapter]
+
+@enduml

@@ -1,0 +1,4 @@
+🧠 Pourquoi ces diagrammes sont utiles
+  . ERD → Base de données + JPA entities
+  . DFD → Vérifie les flux critiques et sécurités (ex: qui accède aux données)
+  . Ensemble → fondation solide pour backend hexagonal + tests + monitoring

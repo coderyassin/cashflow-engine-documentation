@@ -1,0 +1,4 @@
+| Diagramme            | Utilité            |
+| -------------------- | ------------------ |
+| Diagramme de classes | Structure métier   |
+| Diagramme d’états    | Règles d’évolution |

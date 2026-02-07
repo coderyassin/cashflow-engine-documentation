@@ -1,0 +1,15 @@
+@startuml
+title Diagramme d'États – Budget
+
+[*] --> Normal
+
+Normal --> Alerte : 80% atteint
+Alerte --> Depasse : 100% atteint
+Depasse --> Cloture : Fin de période
+
+Alerte --> Normal : Dépense supprimée
+Depasse --> Alerte : Ajustement budget
+
+Cloture --> Normal : Nouvelle période
+
+@enduml

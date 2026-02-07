@@ -1,0 +1,26 @@
+@startuml
+title Diagramme d'Activités – Simulation Financière
+
+start
+
+:Utilisateur saisit un scénario;
+:Validation des données;
+
+if (Données valides ?) then (Oui)
+  :Récupérer flux existants;
+  :Appliquer scénario;
+  :Calculer nouveau cash-flow;
+
+  if (Budget dépassé ?) then (Oui)
+    :Afficher alerte;
+  else (Non)
+    :Afficher situation saine;
+  endif
+
+  :Afficher résultats de simulation;
+else (Non)
+  :Afficher message d'erreur;
+endif
+
+stop
+@enduml

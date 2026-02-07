@@ -1,0 +1,4 @@
+| Diagramme             | Utilité                    |
+| --------------------- | -------------------------- |
+| Diagramme de séquence | Interactions dans le temps |
+| Diagramme d’activités | Workflow métier            |

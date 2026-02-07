@@ -1,0 +1,79 @@
+@startuml
+title ERD – Application de Gestion Financière
+
+entity "User" as U {
+  *id : UUID
+  *name : String
+  *email : String
+  *currency : String
+}
+
+entity "Account" as A {
+  *id : UUID
+  *name : String
+  *balance : Decimal
+  *user_id : UUID
+}
+
+entity "Income" as I {
+  *id : UUID
+  *amount : Decimal
+  *date : Date
+  *frequency : String
+  *account_id : UUID
+}
+
+entity "Expense" as E {
+  *id : UUID
+  *amount : Decimal
+  *date : Date
+  *recurring : Boolean
+  *account_id : UUID
+  *category_id : UUID
+}
+
+entity "Category" as C {
+  *id : UUID
+  *name : String
+  *type : String
+}
+
+entity "Budget" as B {
+  *id : UUID
+  *limit_amount : Decimal
+  *current_amount : Decimal
+  *period : String
+  *account_id : UUID
+  *category_id : UUID
+}
+
+entity "FinancialObjective" as FO {
+  *id : UUID
+  *target_amount : Decimal
+  *current_amount : Decimal
+  *target_date : Date
+  *status : String
+  *user_id : UUID
+}
+
+entity "Forecast" as F {
+  *id : UUID
+  *start_date : Date
+  *end_date : Date
+  *projected_balance : Decimal
+  *account_id : UUID
+}
+
+'User 1-* Account
+U ||--o{ A : owns
+A ||--o{ I : has
+A ||--o{ E : has
+A ||--o{ B : has
+A ||--o{ F : has
+
+E }o--|| C : belongs_to
+B }o--|| C : belongs_to
+
+U ||--o{ FO : owns
+
+@enduml

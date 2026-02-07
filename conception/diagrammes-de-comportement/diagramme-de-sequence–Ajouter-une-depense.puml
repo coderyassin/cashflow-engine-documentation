@@ -1,0 +1,27 @@
+@startuml
+title Diagramme de Séquence – Ajouter une Dépense
+
+actor Utilisateur
+participant "UI / Frontend" as UI
+participant "ExpenseService" as ES
+participant "BudgetService" as BS
+participant "NotificationService" as NS
+database DB
+
+Utilisateur -> UI : Saisir dépense
+UI -> ES : createExpense(data)
+
+ES -> DB : save(expense)
+DB --> ES : expenseSaved
+
+ES -> BS : updateBudget(expense)
+BS -> DB : update(budget)
+DB --> BS : budgetUpdated
+
+BS -> NS : checkThreshold(budget)
+NS -> Utilisateur : Notification (si seuil atteint)
+
+ES --> UI : Confirmation
+UI --> Utilisateur : Dépense ajoutée
+
+@enduml

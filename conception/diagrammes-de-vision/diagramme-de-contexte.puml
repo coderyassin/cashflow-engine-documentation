@@ -1,0 +1,18 @@
+@startuml
+title Diagramme de Contexte – Application de Gestion Financière
+
+actor Utilisateur
+actor Administrateur
+
+rectangle "Application\nGestion des Flux Financiers" {
+}
+
+Utilisateur --> "Application\nGestion des Flux Financiers" : Saisie / Consultation\n(finances personnelles)
+
+Administrateur --> "Application\nGestion des Flux Financiers" : Supervision\nParamétrage
+
+"Application\nGestion des Flux Financiers" --> "Service de Notifications" : Alertes\nNotifications
+"Application\nGestion des Flux Financiers" --> "API Bancaire\n(Futur)" : Synchronisation\nTransactions
+"Application\nGestion des Flux Financiers" --> "Service Authentification" : Authentification\nSécurité
+
+@enduml

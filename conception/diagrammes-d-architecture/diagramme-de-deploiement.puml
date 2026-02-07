@@ -1,0 +1,29 @@
+@startuml
+title Diagramme de Déploiement – Application Financière
+
+node "Client" {
+  component "Browser\nAngular App"
+}
+
+node "Load Balancer / Reverse Proxy" {
+  component Nginx
+}
+
+node "Backend Cluster" {
+  component "Spring Boot API\n(Container)"
+}
+
+node "Database Server" {
+  database PostgreSQL
+}
+
+node "External Services" {
+  component "Notification Service"
+}
+
+"Browser\nAngular App" --> Nginx
+Nginx --> "Spring Boot API\n(Container)"
+"Spring Boot API\n(Container)" --> PostgreSQL
+"Spring Boot API\n(Container)" --> "Notification Service"
+
+@enduml

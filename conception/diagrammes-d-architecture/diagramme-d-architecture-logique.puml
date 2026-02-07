@@ -1,0 +1,44 @@
+@startuml
+title Architecture Logique – Application Gestion Financière
+
+rectangle Frontend_Angular_SPA {
+  [UI]
+}
+
+rectangle Backend_Spring_Boot_API {
+
+  rectangle Application_Core {
+    rectangle Domain {
+      [Entities]
+      [ValueObjects]
+      [DomainServices]
+    }
+
+    rectangle Application_Services {
+      [UseCases]
+      [Orchestration]
+    }
+  }
+
+  rectangle Adapters {
+    rectangle Inbound_Adapters {
+      [REST_Controllers]
+      [Security]
+    }
+
+    rectangle Outbound_Adapters {
+      [Persistence]
+      [Notifications]
+    }
+  }
+}
+
+database PostgreSQL
+
+UI --> REST_Controllers
+REST_Controllers --> Application_Services
+Application_Services --> Domain
+Application_Services --> Outbound_Adapters
+Outbound_Adapters --> PostgreSQL
+
+@enduml
