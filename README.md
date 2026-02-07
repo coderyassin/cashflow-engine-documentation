@@ -39,6 +39,9 @@ projet-cashflow-engine/
 │   └── Diagrammes_Donnees/
 │       ├── Diagramme_ERD.puml
 │       └── Diagramme_DFD-Ajouter-une-Depense.puml
+|
+└── 4_Security/
+    └── SECURITY_AUTHENTIFICATION_ET_AUTORISATION.md
 ```
 
 ---
