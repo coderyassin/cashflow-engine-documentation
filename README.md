@@ -46,6 +46,7 @@ projet-cashflow-engine/
 |
 └── 5_Architecture/
 |   └── ARCHITECTURE_HEXAGONALE_BACKEND_SPRING_BOOT.md
+|   └── CHOIX_TECHNOLOGIQUE.md
 |
 └── 6_MVP/
 |   └── MVP/001-MVP-DEFINITION.md    
