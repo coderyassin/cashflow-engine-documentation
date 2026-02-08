@@ -45,6 +45,7 @@ projet-cashflow-engine/
 |   └── SECURITY_AUTHENTIFICATION_ET_AUTORISATION.md
 |
 └── 5_Architecture/
+|   └── Architecture_Hexagonale_Vue_Generale.md
 |   └── ARCHITECTURE_HEXAGONALE_BACKEND_SPRING_BOOT.md
 |   └── CHOIX_TECHNOLOGIQUE.md
 |
