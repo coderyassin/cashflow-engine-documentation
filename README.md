@@ -82,6 +82,7 @@ Contient l’**architecture hexagonale** adoptée pour la partie backend de l’
 
 ### 6_MVP
 Contient le **MVP (Minimum Viable Product)** de l’application de gestion des flux financiers.
+
 ---
 
 ## 3. Notes techniques
