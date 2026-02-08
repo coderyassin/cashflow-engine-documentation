@@ -45,7 +45,10 @@ projet-cashflow-engine/
 |   └── SECURITY_AUTHENTIFICATION_ET_AUTORISATION.md
 |
 └── 5_Architecture/
-    └── ARCHITECTURE_HEXAGONALE_BACKEND_SPRING_BOOT.md
+|   └── ARCHITECTURE_HEXAGONALE_BACKEND_SPRING_BOOT.md
+|
+└── 6_MVP/
+    └── MVP/001-MVP-DEFINITION.md    
 
 ```
 
@@ -77,6 +80,8 @@ La sécurité de l’application repose sur une architecture **OAuth2 / OpenID C
 ### 5_Architecture
 Contient l’**architecture hexagonale** adoptée pour la partie backend de l’application de gestion des flux financiers.
 
+### 6_MVP
+Contient le **MVP (Minimum Viable Product)** de l’application de gestion des flux financiers.
 ---
 
 ## 3. Notes techniques
