@@ -48,7 +48,17 @@ projet-cashflow-engine/
 |   └── ARCHITECTURE_HEXAGONALE_BACKEND_SPRING_BOOT.md
 |
 └── 6_MVP/
-    └── MVP/001-MVP-DEFINITION.md    
+|   └── MVP/001-MVP-DEFINITION.md    
+|   
+└── 7_Epics/
+|   └── [V1]_EPIC_1_Socle_technique_et_architecture.md
+|   └── [V1]_EPIC_2_Gestion_des_utilisateurs.md
+|   └── [V1]_EPIC_3_Roles_et_privileges.md
+|   └── [V1]_EPIC_4_Authentification_et_securite.md
+|   └── [V1]_EPIC_5_Integration_de_services_externes.md
+|   └── [V1]_EPIC_6_Qualite_tests_et_conformite.md
+| 
+└── README.md
 
 ```
 
@@ -82,6 +92,9 @@ Contient l’**architecture hexagonale** adoptée pour la partie backend de l’
 
 ### 6_MVP
 Contient le **MVP (Minimum Viable Product)** de l’application de gestion des flux financiers.
+
+### 7_Epics
+Contient les **Epics** de l’application de gestion des flux financiers.
 
 ---
 
