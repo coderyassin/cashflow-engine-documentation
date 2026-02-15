@@ -1,0 +1,308 @@
+								************************
+								* 						*
+								*	Schema Registry	    *
+								*						*
+								*************************
+
+Le Gardien des Contrats d'Événements
+
+	Le Schema Registry est un composant fondamental dans les architectures événementiels modernes,
+	particulièrement celles qui utilisent Apache Kafka. C'est un service partagé qui stocke et gère
+	les schémas (les contrats) des événements, et assure leur compatibilité au fil du temps.
+
+	Pensez-y comme à une bibliothèque centrale des contrats d'événements où :
+
+		. Les producteurs viennent déposer la définition de leurs événements
+		. Les consommateurs viennent consulter ces définitions
+		. Le bibliothécaire (le registry) valide que les nouveaux dépôts sont compatibles avec les anciens
+
+
+	1. Pourquoi un Schema Registry est-il nécessaire ?
+
+		Sans Schema Registry, on rencontre plusieurs problèmes
+
+			. Problème 1 : Validation Manuelle Impossible à Grande Échelle
+
+				==> Dans un système avec des centaines de microservices, comment vérifier que le service A a bien modifié son
+					contrat de manière compatible avec les 50 services qui le consomment ? La vérification manuelle est impossible.
+
+			. Problème 2 : Couplage Fort Producteur/Consommateur
+
+				==> Sans registry, les consommateurs doivent connaître à l'avance la structure exacte des événements.
+					Si le producteur change quelque chose, tous les consommateurs doivent être mis à jour en même temps.
+
+			. Problème 3 : Sérialisation/Désérialisation Fragile
+
+				==> Les données dans Kafka sont stockées sous forme de bytes. Comment savoir si ces bytes représentent un JSON,
+					un Avro ou un Protobuf ? Et comment décoder ces bytes sans la définition originale du schéma ?
+
+			. Problème 4 : Évolution Incontrôlée
+
+				==> Rien n'empêche un développeur de pousser un changement cassant en production, entraînant une panne généralisée.
+
+	2. Comment fonctionne un Schema Registry ?
+
+		Étape 1 : Enregistrement du schéma (Contract First)
+
+			. Avant d'envoyer quoi que ce soit, le Producteur doit définir la structure de ses données.
+
+				==> Le Producteur contacte le Schema Registry en lui présentant son schéma (souvent au format Avro, JSON ou Protobuf).
+				==> Le Registry vérifie si ce schéma est compatible avec les versions déjà existantes.
+				==> Une fois validé, le Registry renvoie un ID unique (ex: ID 42) au Producteur.
+
+		Étape 2 : Production du message (Sérialisation)
+
+			. Le Producteur prépare son message pour Kafka.
+
+				==> Au lieu d'envoyer tout le schéma (très lourd), il envoie uniquement l'ID 42 suivi des données encodées en binaire.
+				==> Il transmet ce paquet compact au Broker Kafka.
+
+		Étape 3 : Conservation (Stockage)
+
+			. Le rôle de Kafka est ici purement logistique.
+
+				==> Kafka stocke les messages sous forme de suites d'octets (bytes).
+				==> Il ne lit pas le contenu et ne connaît pas le schéma ; il se contente de conserver l'ID et les données binaires.
+
+		Étape 4 : Consommation (Désérialisation)
+
+			. Le Consommateur récupère les données et doit les rendre lisibles.
+
+				==> Il récupère le message depuis Kafka et voit l'ID 42.
+				==> Il interroge le Schema Registry : "À quoi correspond l'ID 42 ?"
+				==> Le Registry lui renvoie le schéma complet.
+				==> Le Consommateur utilise enfin ce schéma pour décoder les octets et reconstruire l'objet d'origine.
+
+		Points clés de ce fonctionnement
+
+			. Le schéma n'est pas stocké dans le message
+
+				==> Seul un identifiant (ID) est envoyé avec les données. Cela réduit considérablement la taille des messages.
+
+			. Le registry est la source de vérité
+
+				==> Il garantit que tout le monde utilise la même définition du contrat.
+
+			. La validation est pré-production
+
+				==> Le producteur ne peut pas envoyer de message avec un schéma non valide.
+
+	3. Les Formats de Schéma Supportés
+
+		Le Schema Registry ne stocke pas les données, mais les métadonnées décrivant la structure. Les formats les plus courants sont :
+
+			. Apache Avro (Le plus populaire avec Kafka)
+
+				{
+					"type": "record",
+					"name": "UserCreated",
+					"namespace": "com.example.events",
+					"fields": [
+						{"name": "userId", "type": "string"},
+						{"name": "email", "type": "string"},
+						{"name": "signupDate", "type": "long", "logicalType": "timestamp-millis"},
+						{"name": "newsletterOptIn", "type": "boolean", "default": false}
+					]
+				}
+
+				==> Avantages : Format binaire compact, excellent support de l'évolution, intégration native avec Kafka.
+
+			. JSON Schema
+
+				{
+				  "$schema": "http://json-schema.org/draft-07/schema#",
+				  "type": "object",
+				  "properties": {
+					"userId": {"type": "string"},
+					"email": {"type": "string", "format": "email"},
+					"signupDate": {"type": "string", "format": "date-time"},
+					"newsletterOptIn": {"type": "boolean"}
+				  },
+				  "required": ["userId", "email", "signupDate"]
+				}
+
+				==> Avantages : Lisible par les humains, plus flexible, bon pour les APIs.
+
+			. Protobuf (Protocol Buffers)
+
+				syntax = "proto3";
+
+				message UserCreated {
+				  string user_id = 1;
+				  string email = 2;
+				  int64 signup_date = 3;  // timestamp en millisecondes
+				  bool newsletter_opt_in = 4;
+				}
+
+				==> Avantages : Performant, utilisé par gRPC, bonne gestion des versions via les numéros de champ.
+
+	4. Les Stratégies de Compatibilité (Le Cœur du Système)
+
+		⭐ Le Schema Registry ne se contente pas de stocker les schémas.
+		⭐ Il applique des règles de compatibilité entre les versions.
+		⭐ C'est ce qui permet l'évolution contrôlée.
+
+			. BACKWARD (Rétrocompatible - Stratégie par défaut)
+
+				==> Les nouveaux consommateurs utilisant le nouveau schéma doivent pouvoir lire les anciennes données.
+
+					✅ Règle : Le nouveau schéma peut lire les données écrites avec l'ancien schéma.
+					✅ Permet : Ajouter un champ optionnel (avec default), supprimer un champ non optionnel.
+					✅ Interdit : Supprimer un champ optionnel, ajouter un champ obligatoire.
+
+			. FORWARD (Précompatible)
+
+				==> Les anciens consommateurs utilisant l'ancien schéma doivent pouvoir lire les nouvelles données.
+
+					✅ Règle : L'ancien schéma peut lire les données écrites avec le nouveau schéma.
+					✅ Permet : Ajouter un champ obligatoire, supprimer un champ optionnel.
+					✅ Interdit : Supprimer un champ obligatoire.
+
+			. FULL (Compatibilité Totale)
+
+				==> Combine BACKWARD et FORWARD. Les anciens et nouveaux consommateurs peuvent lire toutes les données.
+
+					✅ Règle : Le nouveau schéma peut lire l'ancien, et l'ancien peut lire le nouveau.
+					✅ Permet : Uniquement les changements réversibles (ex: ajout d'un champ optionnel).
+					✅ C'est la stratégie la plus sûre, mais la plus restrictive.
+
+			. BACKWARD_TRANSITIVE / FORWARD_TRANSITIVE / FULL_TRANSITIVE
+
+				==> Version "transitive" des règles ci-dessus.
+				==> Elles vérifient la compatibilité non seulement avec la version immédiatement précédente,
+					mais avec toutes les versions précédentes.
+
+					🚀 Exemple : Si vous avez V1, V2, V3, BACKWARD_TRANSITIVE vérifie que V3 est compatible avec V1 ET V2.
+
+					NONE (Aucune compatibilité - À éviter en production) ➡️ Tout est permis. Risque élevé de casser les consommateurs.
+
+	5. Implémentations Concrètes
+
+		⭐ Confluent Schema Registry (Le plus connu)
+
+			. Développé par les créateurs de Kafka, c'est la référence.
+
+				==> Formats supportés : Avro, JSON Schema, Protobuf
+				==> Fonctionnalités : REST API, intégration avec Kafka Connect, KSQL, sérialiseurs clients
+				==> Stockage : Utilise un topic Kafka interne (_schemas) pour stocker les schémas
+
+		⭐ AWS Glue Schema Registry
+
+			. Service managé d'AWS.
+
+				==> Formats supportés : Avro, JSON
+				==> Intégration : Parfait si vous êtes déjà dans l'écosystème AWS
+				==> Avantage : Pas de serveur à gérer
+
+		⭐ Apicurio Registry (Open Source)
+
+			. Projet open source de Red Hat.
+
+				==> Formats supportés : Avro, JSON, Protobuf, OpenAPI, AsyncAPI
+				==> Avantage : Plus polyvalent, supporte d'autres protocoles que Kafka
+
+		⭐ Azure Schema Registry (dans Event Hubs)
+
+			. Solution managée de Microsoft.
+
+				==> Formats supportés : Avro
+				==> Intégration : Pour ceux qui utilisent Azure Event Hubs
+
+	6. Exemple Complet : Évolution d'un Contrat avec Avro et Confluent Registry
+
+		⭐ Imaginons un événement OrderPlaced qui évolue dans le temps.
+
+			Version 1 (Schéma initial)
+
+			{
+			  "name": "OrderPlaced",
+			  "type": "record",
+			  "fields": [
+				{"name": "orderId", "type": "string"},
+				{"name": "customerId", "type": "string"},
+				{"name": "amount", "type": "double"}
+			  ]
+			}
+
+			Le producteur l'enregistre. Le registry lui assigne l'ID 1.
+
+			Étape 1 : Besoin d'ajouter la devise (currency)
+
+				. Nouveau champ : currency
+				. Pour rester BACKWARD compatible, on le rend optionnel avec une valeur par défaut.
+
+			Version 2
+
+			{
+			  "name": "OrderPlaced",
+			  "type": "record",
+			  "fields": [
+				{"name": "orderId", "type": "string"},
+				{"name": "customerId", "type": "string"},
+				{"name": "amount", "type": "double"},
+				{"name": "currency", "type": "string", "default": "EUR"}
+			  ]
+			}
+
+			Le producteur soumet V2 au registry avec la règle BACKWARD. Le registry vérifie :
+
+				✅ Un consommateur avec V2 peut-il lire un message V1 ? Oui, car currency aura sa valeur par défaut.
+				✅ Compatible. Le registry enregistre V2 avec l'ID 2.
+
+			Étape 2 : Le champ customerId devient userId (renommage)
+
+				C'est un changement incompatible car le type est le même mais le nom change.
+
+			Solution : On doit créer un nouveau schéma avec un nouveau nom ou un namespace différent.
+
+			Version 3 (Nouvel événement)
+
+			{
+			  "name": "OrderPlacedV2",  // Nom changé
+			  "type": "record",
+			  "fields": [
+				{"name": "orderId", "type": "string"},
+				{"name": "userId", "type": "string"},  // Renommé
+				{"name": "amount", "type": "double"},
+				{"name": "currency", "type": "string", "default": "EUR"}
+			  ]
+			}
+
+			Le registry considère ceci comme un nouvel événement (nouveau sujet), pas comme une version de l'ancien.
+
+	7. Bonnes Pratiques avec un Schema Registry
+
+		⭐ À FAIRE
+
+			. Toujours définir des valeurs par défaut pour les nouveaux champs (surtout en Avro)
+
+			. Utiliser la stratégie FULL_TRANSITIVE dans les environnements critiques
+
+			. Automatiser la vérification des schémas dans votre CI/CD avant déploiement
+
+			. Documenter les changements majeurs et communiquer avec les équipes consommatrices
+
+			. Versionner vos schémas dans Git en parallèle du registry
+
+		⭐ À ÉVITER
+
+			. Ne jamais modifier un schéma existant - Toujours créer une nouvelle version
+
+			. Éviter les champs obligatoires sans défaut dans les nouvelles versions
+
+			. Ne pas ignorer les avertissements de compatibilité - Ils sont là pour protéger le système
+
+			. Éviter le sur-versionnage - Un ajout de champ optionnel ne nécessite pas toujours une nouvelle version majeure
+
+	Les bénéfices finaux :
+
+		⭐ Fiabilité : Plus de crash lié à des changements de contrat inattendus
+
+		⭐ Agilité : Les équipes peuvent faire évoluer leurs événements en toute confiance
+
+		⭐ Découplage : Producteurs et consommateurs évoluent à leur propre rythme
+
+		⭐ Observabilité : Vous savez exactement quels contrats existent et qui les utilise
+
+	Le Schema Registry transforme le "Far West" des événements non typés en un système organisé et prévisible,
+	tout en préservant la flexibilité nécessaire à l'évolution des microservices.

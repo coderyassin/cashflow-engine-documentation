@@ -1,0 +1,132 @@
+								*********************************
+								* 								*
+								*	Event Contract Versioning	*
+								*								*
+								*********************************
+
+1. Le Contexte
+
+	Que se passe-t-il si le service producteur doit changer la structure de l'événement ?
+
+2. Le Pattern en Détail
+
+================================================================================
+FLUX DE VERSIONING DES ÉVÉNEMENTS (EVENT VERSIONING FLOW)
+================================================================================
+
+[ SERVICE PRODUCTEUR ]
+----------------------
+1. Nouvelle Fonctionnalité
+   |
+   v
+2. [DÉCISION] : Changement du Contrat ?
+   |
+   +-- (Oui) --> 3. Choisir Stratégie de Versioning
+                    |
+                    v
+                 4. Publier Événement avec Version V2
+                    |
+                    v
+================[ MESSAGE BROKER (ex: Kafka) ]================
+                    |
+      +-------------+-------------+
+      |                           |
+      v                           v
+
+[ SERVICE CONSOMMATEUR 2 ]       [ SERVICE CONSOMMATEUR 1 ]
+(Consommateur Mis à jour)        (Consommateur Ancien)
+      |                           |
+      v                           v
+[DÉCISION] : Version de ?        [DÉCISION] : Version de ?
+l'événement ?                    l'événement ?
+      |                           |
+      +-- (V1) --> Traitement     +-- (V1) --> Traitement
+      |            avec Adaptateur|            Legacy
+      |                           |
+      +-- (V2) --> Nouveau        +-- (V2) --> Ignorer ou
+                   Traitement                  Logguer
+
+================================================================================
+
+3. Quand faut-il versionner ?
+
+	. Changement Compatible (Souvent version mineure)
+
+		==> Ajout d'un champ optionnel.
+		==> Ajout d'une valeur à un enum.
+
+	. Changement Incompatible (Nécessite un nouveau version majeur)
+
+		==> Suppression d'un champ.
+		==> Renommage d'un champ.
+		==> Changement du type d'un champ (ex: string -> int).
+		==> Rendre un champ optionnel en obligatoire.
+		==> Restructuration complète de l'objet.
+
+4. Les Stratégies de Mise en Œuvre
+
+	A. Version dans l'En-tête (Header Versioning)
+
+	B. Version dans le Corps du Message (Payload Versioning)
+
+	C. Par le Nom de l'Événement (Event Type Versioning)
+
+5. Gestion de la Cohabitation des Versions (Le Plus Important)
+
+	Phase 1 : Émission du Nouveau Contrat
+
+		. Le service producteur commence à émettre à la fois l'ancien événement (V1) et le nouvel événement (V2),
+		. Modifie son topic pour publier sur V2 tout en laissant V1 actif (selon la stratégie choisie).
+
+	Phase 2 : Mise à jour des Consommateurs
+
+		Étape A
+
+			. On modifie le service consommateur pour qu'il puisse comprendre le nouveau contrat V2.
+			. Il continue de traiter les événements V1 de la même manière.
+
+		Étape B
+
+			. Une fois que le consommateur mis à jour est déployé et stable, on peut le faire basculer pour qu'il utilise les données du contrat V2.
+
+	Phase 3 : Retrait de l'Ancien Contrat (Déprication)
+		. Une fois que tous les consommateurs ont été migrés et ne dépendent plus de la V1, le producteur peut cesser d'émettre la V1.
+		. Ne jamais cesser d'émettre une version tant que vous n'êtes pas certain à 100% qu'elle n'est plus consommée nulle part.
+
+6. Bonnes Pratiques et Anti-Patterns
+
+	À Faire
+
+		. Privilégier la compatibilité ascendante
+
+			==> Concevez vos contrats dès le départ pour être extensibles.
+			==> Utiliser des formats comme Avro, Protobuf ou JSON Schema (qui ont des règles d'évolution intégrées).
+
+		. Utiliser un Schema Registry
+
+			==> Des outils comme le Confluent Schema Registry (pour Kafka) ou d'autres registres permettent de stocker et de valider
+				que les événements produits respectent un contrat connu, et de suivre les différentes versions de ce contrat.
+
+		. Documenter les changements
+
+			==> Toute nouvelle version doit être documentée pour les équipes consommatrices.
+
+		. Adopter le "Tolerant Reader" (Lecteur Tolérant)
+
+			==> Concevez vos consommateurs pour qu'ils ignorent gracieusement les champs qu'ils ne connaissent pas
+				et qu'ils aient des valeurs par défaut pour les champs manquants.
+
+	À Éviter
+
+		. Le sur-versionnage
+
+			==> Ne changez pas de version pour un simple ajout de champ optionnel si vos consommateurs sont tolérants.
+
+		. Casser les consommateurs sans préavis
+
+			==> C'est la recette pour une panne générale.
+
+		. Oublier les événements historiques
+
+			==> Les consumers relisent parfois d'anciens événements (replay).
+			==> Les consumers doivent toujours être capables de traiter les anciennes versions, même longtemps après leur dépréciation.

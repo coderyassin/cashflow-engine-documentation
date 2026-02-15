@@ -1,0 +1,34 @@
+flowchart LR
+    subgraph "Couche Application"
+        App[Application]
+        DB[(PostgreSQL)]
+        Outbox[Table Outbox]
+    end
+
+    subgraph "Couche CDC"
+        Debezium[Debezium Connector]
+        Kafka[Kafka]
+        Transformer[Event Transformer]
+    end
+
+    subgraph "Couche Distribution"
+        Topics[Kafka Topics]
+        Consumers[Consumers]
+    end
+
+    App -->|Transaction| DB
+    DB --> Outbox
+    
+    Debezium -->|Lecture WAL| DB
+    Debezium -->|Publication| Kafka
+    
+    Kafka -->|Raw Events| Transformer
+    Transformer -->|Events transformés| Topics
+    
+    Topics -->|Consommation| Consumers
+    
+    style App fill:#f9f,stroke:#333
+    style DB fill:#bfb,stroke:#333
+    style Outbox fill:#fbb,stroke:#333
+    style Debezium fill:#ff9,stroke:#333
+    style Kafka fill:#9cf,stroke:#333

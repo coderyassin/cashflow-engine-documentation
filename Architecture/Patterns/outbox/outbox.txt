@@ -1,0 +1,303 @@
+								*****************************
+								*          Outbox 			*
+								*****************************
+
+Problème fondamental
+
+	Dans les architectures microservices ou les systèmes distribués, on rencontre souvent un problème critique :
+	comment garantir la consistency entre une base de données et des messages/événements ?
+
+Exemple
+
+	@Transactional
+	public void createOrder(Order order) {
+		// 1. Sauvegarde en base
+		orderRepository.save(order);
+
+		// 2. Envoi d'un message Kafka/RabbitMQ
+		messageBroker.send(new OrderCreatedEvent(order));
+	}
+
+	Que se passe-t-il si
+
+		. La base de données sauvegarde mais le message broker est down ?
+		. Le message est envoyé mais la transaction DB échoue après l'envoi ?
+		. Un crash survient entre les deux opérations ?
+
+	On se retrouve avec une inconsistance entre l'état de la base et les messages envoyés.
+
+Solution : Le Pattern Outbox
+
+	L'Outbox Pattern résout ce problème en transformant l'envoi de messages en une opération atomique avec la base de données.
+
+	Principe de base
+
+		Au lieu d'envoyer directement le message, on l'écrit dans une table "outbox" dans la même transaction que l'opération métier :
+
+		--------------------------------------------------------------------------------------------------------
+		|
+		|	@Transactional
+		|	public void createOrder(Order order) {
+		|		// 1. Opération métier
+		|		orderRepository.save(order);
+		|
+		|		// 2. Écriture dans l'outbox (MÊME TRANSACTION)
+		|		outboxRepository.save(new OutboxMessage(
+		|			"OrderCreated",
+		|			order.getId(),
+		|			jsonSerializer.serialize(order)
+		|		));
+		|	}
+		|
+		--------------------------------------------------------------------------------------------------------
+
+Architecture complète
+
+	┌─────────────┐     ┌──────────────────┐     ┌─────────────┐
+	│ Application │────▶│   Base de données│     │ Message     │
+	│             │     │                  │     │ Broker      │
+	│             │     │ ┌──────────────┐ │     │             │
+	│             │     │ │ Tables métier│ │     │  ┌────────┐ │
+	│             │     │ ├──────────────┤ │     │  │ Queue  │ │
+	│             │     │ │ Table Outbox │ │     │  │ Topics │ │
+	│             │     │ └──────────────┘ │     │  └────────┘ │
+	│             │     │                  │     │             │
+	│             │     └─────────┬────────┘     └─────────────┘
+	│             │               │                      ▲
+	│             │               │                      │
+	│             │               └──────┬───────────────┘
+	│             │                      │
+	│             │              ┌────────▼────────┐
+	│             │              │  Publisher      │
+	│             │              │ (Service séparé)│
+	│             │              └─────────────────┘
+	└─────────────┘
+
+Composants clés
+
+	1. Table Outbox
+
+		--------------------------------------------------------------------------------------------------------
+		|																									   |
+		|	CREATE TABLE outbox_messages (																	   |
+		|		id UUID PRIMARY KEY,																		   |
+		|		aggregate_type VARCHAR(100) NOT NULL,														   |
+		|		aggregate_id VARCHAR(100) NOT NULL,															   |
+		|		event_type VARCHAR(100) NOT NULL,															   |
+		|		payload JSONB NOT NULL,																		   |
+		|		created_at TIMESTAMP NOT NULL,																   |
+		|		processed_at TIMESTAMP NULL,																   |
+		|		retry_count INT DEFAULT 0,																	   |
+		|		status VARCHAR(20) DEFAULT 'PENDING'														   |
+		|	);																								   |
+		|																									   |
+		|	CREATE INDEX idx_outbox_unprocessed ON outbox_messages(processed_at) WHERE processed_at IS NULL;   |
+		|	CREATE INDEX idx_outbox_created_at ON outbox_messages(created_at);								   |
+		|																									   |
+		--------------------------------------------------------------------------------------------------------
+
+	2. Publisher (Message Relay)
+
+		⭐ Un processus séparé qui
+
+			. Lit périodiquement les messages non traités
+			. Les envoie au message broker
+			. Marque comme traités ou gère les erreurs
+
+			--------------------------------------------------------------------------------------------------------
+			|
+			|	@Component
+			|	public class OutboxPublisher {
+			|
+			|		@Scheduled(fixedDelay = 1000) // Chaque seconde
+			|		@Transactional
+			|		public void publishPendingMessages() {
+			|			List<OutboxMessage> messages = outboxRepository.findTop100Unprocessed();
+			|
+			|			for (OutboxMessage message : messages) {
+			|				try {
+			|					// Envoi au message broker
+			|					messageBroker.publish(message.getEventType(), message.getPayload());
+			|
+			|					// Marquage comme traité
+			|					message.setProcessedAt(now());
+			|					message.setStatus("PROCESSED");
+			|					outboxRepository.save(message);
+			|
+			|				} catch (Exception e) {
+			|					// Gestion d'erreur avec retry
+			|					handleFailure(message, e);
+			|				}
+			|			}
+			|		}
+			|	}
+			|
+			--------------------------------------------------------------------------------------------------------
+
+Avantages
+
+	==> Atomicité garantie : Soit tout réussit, soit tout échoue
+	==> Consistency à terme : Les messages finissent toujours par être envoyés
+	==> Résilience : Le système continue de fonctionner même si le message broker est down
+	==> Traçabilité : Historique complet de tous les événements
+	==> Replay possible : Possibilité de rejouer des événements en cas de besoin
+
+Variantes et implémentations
+
+	1. Avec Change Data Capture (CDC)
+
+		Utilisation d'outils comme Debezium pour capturer les changements dans la table outbox :
+
+		--------------------------------------------------------------------------------------------------------
+		|	# Configuration Debezium
+		|	name: outbox-connector
+		|	config:
+		|	  connector.class: io.debezium.connector.postgresql.PostgresConnector
+		|	  database.hostname: postgres
+		|	  database.port: 5432
+		|	  database.user: ${DB_USER}
+		|	  database.password: ${DB_PASSWORD}
+		|	  database.dbname: ${DB_NAME}
+		|	  table.include.list: public.outbox_messages
+		|	  transforms: outbox
+		|	  transforms.outbox.type: io.debezium.transforms.outbox.EventRouter
+		|
+		--------------------------------------------------------------------------------------------------------
+
+	2. Avec Transactional Outbox Table Partitionnée
+
+		Pour les systèmes à très fort volume :
+
+		--------------------------------------------------------------------------------------------------------
+		|																									    |
+		|	-- Partitionnement par date																			|
+		|	CREATE TABLE outbox_messages_partitioned (															|
+		|		LIKE outbox_messages INCLUDING DEFAULTS															|
+		|	) PARTITION BY RANGE (created_at);																	|
+		|																										|
+		|	-- Création des partitions mensuelles																|
+		|	CREATE TABLE outbox_messages_202401 PARTITION OF outbox_messages_partitioned						|
+		|		FOR VALUES FROM ('2024-01-01') TO ('2024-02-01');												|
+		|																										|
+		--------------------------------------------------------------------------------------------------------
+
+Pièges et considérations
+
+	⭐ Double envoi possible
+
+		⚠️ Problème : Le publisher peut envoyer deux fois un message en cas de crash après envoi mais avant marquage.
+		💡 Solution : rendre le consumer idempotent.
+
+	⭐ Performance
+
+		⚠️ Problème : Écriture supplémentaire dans chaque transaction.
+		💡 Solution : batching des messages outbox.
+
+	⭐ Ordre des messages
+
+		⚠️ Problème : Si l'ordre est important.
+		💡 Solution : Il faut ajouter un sequence number.
+
+		--------------------------------------------------------------------------------------------------------
+		|																										|
+		|	ALTER TABLE outbox_messages ADD COLUMN sequence_number BIGSERIAL;									|
+		|																										|
+		--------------------------------------------------------------------------------------------------------
+
+	⭐ Nettoyage :
+
+		⚠️ Problème : Les messages traités s'accumulent.
+		💡 Solution : job de cleanup.
+
+Exemple complet avec Spring Boot
+
+	--------------------------------------------------------------------------------------------------------
+	|
+	|	@Entity
+	|	@Table(name = "outbox_messages")
+	|	@Data
+	|	public class OutboxMessage {
+	|		@Id
+	|		private UUID id = UUID.randomUUID();
+	|
+	|		private String aggregateType;
+	|		private String aggregateId;
+	|		private String eventType;
+	|
+	|		@Convert(converter = JsonConverter.class)
+	|		private Object payload;
+	|
+	|		private LocalDateTime createdAt = LocalDateTime.now();
+	|		private LocalDateTime processedAt;
+	|		private Integer retryCount = 0;
+	|		private String status = "PENDING";
+	|	}
+	|
+	|	@Service
+	|	@Slf4j
+	|	public class OrderService {
+	|
+	|		@Transactional
+	|		public void createOrder(CreateOrderCommand command) {
+	|			// 1. Validation
+	|			Order order = Order.create(command);
+	|
+	|			// 2. Sauvegarde
+	|			orderRepository.save(order);
+	|
+	|			// 3. Outbox
+	|			outboxRepository.save(OutboxMessage.builder()
+	|				.aggregateType("Order")
+	|				.aggregateId(order.getId().toString())
+	|				.eventType("OrderCreated")
+	|				.payload(order)
+	|				.build());
+	|		}
+	|	}
+	|
+	|	@Component
+	|	public class OutboxScheduler {
+	|
+	|		@Scheduled(fixedDelayString = "${outbox.polling.interval:1000}")
+	|		@Transactional(propagation = Propagation.REQUIRES_NEW)
+	|		public void processOutbox() {
+	|			List<OutboxMessage> messages = outboxRepository
+	|				.findByStatusAndRetryCountLessThan("PENDING", 3);
+	|
+	|			for (OutboxMessage message : messages) {
+	|				try {
+	|					// Envoi
+	|					kafkaTemplate.send(message.getEventType(), message.getPayload());
+	|
+	|					// Mise à jour
+	|					message.setStatus("PROCESSED");
+	|					message.setProcessedAt(LocalDateTime.now());
+	|
+	|				} catch (Exception e) {
+	|					message.setRetryCount(message.getRetryCount() + 1);
+	|					if (message.getRetryCount() >= 3) {
+	|						message.setStatus("FAILED");
+	|					}
+	|					log.error("Failed to send message: {}", message.getId(), e);
+	|				}
+	|
+	|				outboxRepository.save(message);
+	|			}
+	|		}
+	|	}
+	|
+	--------------------------------------------------------------------------------------------------------
+
+Conclusion
+
+	L'Outbox Pattern est une solution élégante au problème de consistency entre base de données et messaging.
+	Il est particulièrement adapté pour
+
+		👍 Les architectures microservices
+		👍 Les systèmes nécessitant une forte fiabilité
+		👍 Les cas où l'ordre et la garantie de livraison sont importants
+		👍 Les migrations de systèmes monolithiques vers une architecture événementielle
+
+
+	Le prix à payer est une légère complexité additionnelle et une latence potentielle,
+	mais la robustesse apportée justifie largement cet investissement dans la plupart des cas d'usage professionnels.

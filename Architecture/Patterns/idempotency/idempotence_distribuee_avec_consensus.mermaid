@@ -1,0 +1,17 @@
+flowchart TD
+    subgraph "Cluster de services"
+        A[Service A] --> ZK[(ZooKeeper/Etcd)]
+        B[Service B] --> ZK
+        C[Service C] --> ZK
+    end
+    
+    subgraph "Stockage distribué"
+        ZK --> D[Leader élection]
+        ZK --> E[Lock distribué]
+        ZK --> F[Configuration partagée]
+    end
+    
+    subgraph "Base de données"
+        G[(PostgreSQL<br/>Avec advisory locks)]
+        H[(Cassandra<br/>Lightweight transactions)]
+    end

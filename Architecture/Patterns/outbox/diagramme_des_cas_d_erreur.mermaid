@@ -1,0 +1,35 @@
+flowchart TD
+    subgraph "Scénario 1: Échec avant commit"
+        A1[Début Transaction] --> B1[Opération Métier OK]
+        B1 --> C1[Écriture Outbox OK]
+        C1 --> D1{Commit}
+        D1 -->|ÉCHEC| E1[Rollback complet<br/>+ Pas de message]
+    end
+
+    subgraph "Scénario 2: Échec après commit"
+        A2[Début Transaction] --> B2[Opération Métier OK]
+        B2 --> C2[Écriture Outbox OK]
+        C2 --> D2{Commit}
+        D2 -->|SUCCÈS| E2[Données en base + Message Outbox]
+        E2 --> F2{Publisher plante?}
+        F2 -->|Oui| G2[Message reste PENDING<br/>Reprise au restart]
+        F2 -->|Non| H2[Envoi normal]
+    end
+
+    subgraph "Scénario 3: Broker down"
+        A3[Transaction réussie] --> B3[Message en Outbox PENDING]
+        B3 --> C3[Publisher essaie d'envoyer]
+        C3 --> D3{Broker répond?}
+        D3 -->|Non| E3[Incrément retry_count]
+        E3 --> F3{retry_count < max?}
+        F3 -->|Oui| G3[Nouvel essai plus tard]
+        F3 -->|Non| H3[Status = FAILED<br/>+ Alert]
+    end
+
+    subgraph "Scénario 4: Double envoi"
+        A4[Message envoyé] --> B4[Publisher crash avant update]
+        B4 --> C4[Message toujours PENDING]
+        C4 --> D4[Publisher redémarre]
+        D4 --> E4[Renvoi du message]
+        E4 --> F4[Consumer doit être idempotent]
+    end

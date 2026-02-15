@@ -1,0 +1,664 @@
+								*****************************
+								*        Idempotency 		*
+								*****************************
+
+Introduction et définition
+
+	L'idempotence est une propriété fondamentale dans les systèmes distribués.
+	Une opération est dite idempotente si elle peut être exécutée plusieurs fois
+	sans changer le résultat au-delà de la première application.
+
+	En termes simples : peu importe combien de fois vous exécutez l'opération,
+	le résultat final est le même que si vous l'aviez exécutée une seule fois.
+
+	--------------------------------------------------------------------------------------------------------
+	|
+	|	// Opération NON idempotente
+	|	int counter = 0;
+	|	counter++; // Résultat différent à chaque exécution
+	|
+	|	// Opération idempotente
+	|	counter = 5; // Peu importe combien de fois on l'exécute, counter = 5 toujours
+	|
+	--------------------------------------------------------------------------------------------------------
+
+Pourquoi l'idempotence est cruciale ?
+
+	Dans les systèmes distribués, plusieurs facteurs rendent l'idempotence indispensable
+
+		💥 Problèmes dans les systèmes distribués
+
+				⚠️ Réessais automatiques : Le client réessaie car pas de réponse
+				⚠️ Timeouts ambigus : A-t-on réussi avant le timeout? Impossible de savoir
+				⚠️ Messages dupliqués : Kafka/RabbitMQ peuvent délivrer plusieurs fois
+				⚠️ Failover/Reprise : Après crash, rejeu des opérations
+
+Le problème concret
+
+	Prenons un exemple de paiement en ligne :
+
+		--------------------------------------------------------------------------------------------------------
+		|
+		|	// Scénario problématique sans idempotence
+		|	@RestController
+		|	public class PaymentController {
+		|
+		|		@PostMapping("/api/payments")
+		|		public PaymentResponse processPayment(@RequestBody PaymentRequest request) {
+		|			// Problème : si cette requête est exécutée deux fois,
+		|			// le client sera débité deux fois !
+		|			return paymentService.charge(request);
+		|		}
+		|	}
+		|
+		--------------------------------------------------------------------------------------------------------
+
+	Que se passe-t-il si :
+
+		. Le client a un timeout réseau et réessaie ?
+		. Kafka délivre le même message deux fois ?
+		. Un restart du serveur survient après traitement mais avant envoi de l'ACK ?
+
+Le Pattern Idempotency Key
+
+	💡 Principe de base
+
+		☀️ La solution standard est d'utiliser une clé d'idempotence (Idempotency Key) :
+
+	💡 Implémentation détaillée
+
+
+		1. Structure de stockage
+
+			--------------------------------------------------------------------------------------------------------
+			|
+			|	CREATE TABLE idempotency_records (
+			|		id BIGSERIAL PRIMARY KEY,
+			|		idempotency_key VARCHAR(255) NOT NULL,
+			|		request_hash VARCHAR(64) NOT NULL,
+			|		response_code INT NOT NULL,
+			|		response_body JSONB NOT NULL,
+			|		created_at TIMESTAMP NOT NULL,
+			|		expires_at TIMESTAMP NOT NULL,
+			|		lock_version INT DEFAULT 0
+			|	);
+			|
+			|	CREATE UNIQUE INDEX idx_idempotency_key ON idempotency_records(idempotency_key);
+			|	CREATE INDEX idx_expires_at ON idempotency_records(expires_at);
+			|	CREATE INDEX idx_created_at ON idempotency_records(created_at);
+			|
+			--------------------------------------------------------------------------------------------------------
+
+		2. Middleware d'idempotence
+
+			--------------------------------------------------------------------------------------------------------
+			|
+			|	@Component
+			|	public class IdempotencyMiddleware {
+			|
+			|		private final RedisTemplate<String, IdempotencyRecord> redis;
+			|		private final ObjectMapper objectMapper;
+			|
+			|		public ResponseEntity<?> handleWithIdempotency(
+			|				HttpServletRequest request,
+			|				String idempotencyKey,
+			|				Supplier<ResponseEntity<?>> operation) {
+			|
+			|			// 1. Validation de la clé
+			|			if (idempotencyKey == null || idempotencyKey.isBlank()) {
+			|				return ResponseEntity.badRequest()
+			|					.body("Idempotency-Key header is required");
+			|			}
+			|
+			|			// 2. Vérification en cache avec locking
+			|			String cacheKey = "idempotency:" + idempotencyKey;
+			|
+			|			return redis.execute(session -> {
+			|				// Tentative d'acquisition du lock
+			|				Boolean locked = session.opsForValue()
+			|					.setIfAbsent(cacheKey + ":lock", "locked",
+			|						Duration.ofSeconds(30));
+			|
+			|				if (Boolean.TRUE.equals(locked)) {
+			|					try {
+			|						// Vérifier si déjà traité
+			|						IdempotencyRecord existing =
+			|							(IdempotencyRecord) session.opsForValue().get(cacheKey);
+			|
+			|						if (existing != null) {
+			|							return ResponseEntity.status(existing.getResponseCode())
+			|								.body(existing.getResponseBody());
+			|						}
+			|
+			|						// Vérifier la cohérence de la requête
+			|						String requestHash = calculateHash(request);
+			|						if (!requestHash.equals(existing.getRequestHash())) {
+			|							return ResponseEntity.status(409)
+			|								.body("Idempotency key used with different request");
+			|						}
+			|
+			|						// Exécuter l'opération
+			|						ResponseEntity<?> response = operation.get();
+			|
+			|						// Stocker le résultat
+			|						IdempotencyRecord record = IdempotencyRecord.builder()
+			|							.idempotencyKey(idempotencyKey)
+			|							.requestHash(requestHash)
+			|							.responseCode(response.getStatusCodeValue())
+			|							.responseBody(response.getBody())
+			|							.expiresAt(Instant.now().plus(Duration.ofDays(7)))
+			|							.build();
+			|
+			|						session.opsForValue().set(cacheKey, record,
+			|							Duration.ofDays(7));
+			|
+			|						return response;
+			|
+			|					} finally {
+			|						session.delete(cacheKey + ":lock");
+			|					}
+			|				} else {
+			|					// Si lock non obtenu, attendre et réessayer
+			|					Thread.sleep(100);
+			|					return handleWithIdempotency(request, idempotencyKey, operation);
+			|				}
+			|			});
+			|		}
+			|	}
+			|
+			--------------------------------------------------------------------------------------------------------
+
+		3. Annotation personnalisée
+
+			--------------------------------------------------------------------------------------------------------
+			|
+			|	@Target({ElementType.METHOD})
+			|	@Retention(RetentionPolicy.RUNTIME)
+			|	public @interface Idempotent {
+			|		// Durée de conservation de la clé
+			|		Duration ttl() default Duration.ofDays(7);
+			|
+			|		// Stratégie en cas de conflit
+			|		ConflictStrategy conflictStrategy() default ConflictStrategy.REJECT;
+			|
+			|		// Inclure certains paramètres dans la clé
+			|		String[] includeParameters() default {};
+			|	}
+			|
+			|	public enum ConflictStrategy {
+			|		REJECT,           // Rejeter avec 409
+			|		RETURN_EXISTING,  // Retourner la réponse existante
+			|		OVERWRITE        // Permettre l'écrasement
+			|	}
+			|
+			--------------------------------------------------------------------------------------------------------
+
+		4. Utilisation dans un contrôleur
+
+			--------------------------------------------------------------------------------------------------------
+			|
+			|	@RestController
+			|	@RequestMapping("/api/payments")
+			|	public class PaymentController {
+			|
+			|		@PostMapping
+			|		@Idempotent(ttl = Duration.ofDays(30))
+			|		public ResponseEntity<PaymentResponse> processPayment(
+			|				@RequestHeader("Idempotency-Key") String idempotencyKey,
+			|				@RequestBody @Valid PaymentRequest request) {
+			|
+			|			// Logique métier
+			|			Payment payment = paymentService.process(request);
+			|
+			|			return ResponseEntity.ok(new PaymentResponse(payment));
+			|		}
+			|
+			|		@PostMapping("/refund")
+			|		@Idempotent(conflictStrategy = ConflictStrategy.RETURN_EXISTING)
+			|		public ResponseEntity<RefundResponse> processRefund(
+			|				@RequestHeader("Idempotency-Key") String idempotencyKey,
+			|				@RequestBody @Valid RefundRequest request) {
+			|
+			|			// Un remboursement doit absolument être idempotent
+			|			Refund refund = refundService.process(request);
+			|
+			|			return ResponseEntity.ok(new RefundResponse(refund));
+			|		}
+			|	}
+			|
+			--------------------------------------------------------------------------------------------------------
+
+Cas d'usage concrets
+
+	1. Paiements Stripe
+
+		--------------------------------------------------------------------------------------------------------
+		|
+		|	@Service
+		|	public class StripePaymentService {
+		|
+		|		public PaymentIntent createPayment(PaymentRequest request) {
+		|			// Stripe utilise nativement l'idempotence
+		|			Map<String, Object> params = new HashMap<>();
+		|			params.put("amount", request.getAmount());
+		|			params.put("currency", "eur");
+		|			params.put("payment_method", request.getPaymentMethodId());
+		|
+		|			// La clé d'idempotence garantit qu'on ne débite pas deux fois
+		|			PaymentIntent intent = PaymentIntent.create(params,
+		|				RequestOptions.builder()
+		|					.setIdempotencyKey(request.getIdempotencyKey())
+		|					.build());
+		|
+		|			return intent;
+		|		}
+		|	}
+		|
+		--------------------------------------------------------------------------------------------------------
+
+	2. Création de commande
+
+		--------------------------------------------------------------------------------------------------------
+		|
+		|	@Service
+		|	@Transactional
+		|	public class OrderService {
+		|
+		|		public Order createOrder(OrderRequest request, String idempotencyKey) {
+		|			// Vérifier si la commande existe déjà avec cette clé
+		|			Optional<Order> existingOrder = orderRepository
+		|				.findByIdempotencyKey(idempotencyKey);
+		|
+		|			if (existingOrder.isPresent()) {
+		|				// Retourner la commande existante
+		|				return existingOrder.get();
+		|			}
+		|
+		|			// Vérifier l'unicité des références
+		|			if (orderRepository.existsByOrderNumber(request.getOrderNumber())) {
+		|				throw new DuplicateOrderException(
+		|					"Order number already exists: " + request.getOrderNumber());
+		|			}
+		|
+		|			// Créer nouvelle commande
+		|			Order order = Order.builder()
+		|				.orderNumber(request.getOrderNumber())
+		|				.customerId(request.getCustomerId())
+		|				.amount(request.getAmount())
+		|				.idempotencyKey(idempotencyKey)
+		|				.status(OrderStatus.CREATED)
+		|				.build();
+		|
+		|			return orderRepository.save(order);
+		|		}
+		|	}
+		|
+		--------------------------------------------------------------------------------------------------------
+
+	3. Intégration avec Kafka
+
+		--------------------------------------------------------------------------------------------------------
+		|
+		|	@Component
+		|	public class IdempotentKafkaConsumer {
+		|
+		|		private final RedisTemplate<String, String> redis;
+		|		private final OrderService orderService;
+		|
+		|		@KafkaListener(topics = "order-events")
+		|		public void consumeOrderEvent(ConsumerRecord<String, OrderEvent> record) {
+		|			String messageId = record.key(); // Utiliser comme clé d'idempotence
+		|			OrderEvent event = record.value();
+		|
+		|			// Atomic check-and-set avec Redis
+		|			Boolean success = redis.opsForValue()
+		|				.setIfAbsent("processed:" + messageId, "processing",
+		|					Duration.ofMinutes(5));
+		|
+		|			if (Boolean.TRUE.equals(success)) {
+		|				try {
+		|					// Traiter le message
+		|					orderService.processEvent(event);
+		|
+		|					// Marquer comme traité
+		|					redis.opsForValue()
+		|						.set("processed:" + messageId, "done",
+		|							Duration.ofDays(7));
+		|
+		|				} catch (Exception e) {
+		|					// En cas d'erreur, supprimer le lock
+		|					redis.delete("processed:" + messageId);
+		|					throw e;
+		|				}
+		|			} else {
+		|				// Message déjà vu
+		|				String status = redis.opsForValue().get("processed:" + messageId);
+		|				if ("done".equals(status)) {
+		|					log.info("Message déjà traité: {}", messageId);
+		|				} else {
+		|					log.warn("Message en cours de traitement: {}", messageId);
+		|				}
+		|			}
+		|		}
+		|	}
+		|
+		--------------------------------------------------------------------------------------------------------
+
+Stratégies avancées
+
+	1. Idempotence distribuée avec consensus
+
+		👀 Voir le diagramme
+
+	2. Idempotence avec versioning
+
+		--------------------------------------------------------------------------------------------------------
+		|
+		|	@Entity
+		|	public class Account {
+		|		@Id
+		|		private Long id;
+		|		private BigDecimal balance;
+		|
+		|		@Version
+		|		private Long version; // Optimistic locking
+		|
+		|		@Column(unique = true)
+		|		private String transactionId; // Idempotence key
+		|	}
+		|
+		|	@Service
+		|	public class TransferService {
+		|
+		|		@Transactional
+		|		public void transfer(TransferRequest request) {
+		|			// Vérifier si déjà traité
+		|			if (transactionRepository.existsByExternalId(request.getExternalId())) {
+		|				return; // Idempotent : ne rien faire
+		|			}
+		|
+		|			Account from = accountRepository.findById(request.getFromId());
+		|			Account to = accountRepository.findById(request.getToId());
+		|
+		|			// Optimistic locking garantit l'atomicité
+		|			from.setBalance(from.getBalance().subtract(request.getAmount()));
+		|			to.setBalance(to.getBalance().add(request.getAmount()));
+		|
+		|			// Enregistrer la transaction
+		|			Transaction transaction = Transaction.builder()
+		|				.externalId(request.getExternalId())
+		|				.amount(request.getAmount())
+		|				.build();
+		|
+		|			transactionRepository.save(transaction);
+		|			accountRepository.saveAll(List.of(from, to));
+		|		}
+		|	}
+		|
+		--------------------------------------------------------------------------------------------------------
+
+	3. Cleanup automatique
+
+		--------------------------------------------------------------------------------------------------------
+		|
+		|	@Component
+		|	public class IdempotencyCleanupScheduler {
+		|
+		|		private final IdempotencyRepository repository;
+		|
+		|		@Scheduled(cron = "0 0 2 * * *") // Tous les jours à 2h
+		|		@Transactional
+		|		public void cleanupOldRecords() {
+		|			// Nettoyer les enregistrements plus vieux que 30 jours
+		|			LocalDateTime cutoff = LocalDateTime.now().minusDays(30);
+		|
+		|			int deleted = repository.deleteByCreatedAtBefore(cutoff);
+		|			log.info("Nettoyage idempotence: {} enregistrements supprimés", deleted);
+		|		}
+		|
+		|		@Scheduled(fixedDelay = 3600000) // Toutes les heures
+		|		public void cleanupExpiredLocks() {
+		|			// Nettoyer les locks orphelins
+		|			Set<String> locks = redis.keys("idempotency:*:lock");
+		|
+		|			for (String lock : locks) {
+		|				Long ttl = redis.getExpire(lock);
+		|				if (ttl != null && ttl < 0) {
+		|					redis.delete(lock);
+		|					log.info("Lock expiré nettoyé: {}", lock);
+		|				}
+		|			}
+		|		}
+		|	}
+		|
+		--------------------------------------------------------------------------------------------------------
+
+Pièges et considérations
+
+	1. Timeout et états intermédiaires
+
+		--------------------------------------------------------------------------------------------------------
+		|
+		|	// Problème potentiel
+		|	public class ProblematicService {
+		|
+		|		public Response process(String key) {
+		|			// 1. Vérifier si clé existe
+		|			if (exists(key)) {
+		|				return getCachedResponse(key);
+		|			}
+		|
+		|			// 2. Exécuter opération longue
+		|			Response response = longRunningOperation();
+		|
+		|			// 3. Cache le résultat
+		|			cache(key, response);
+		|
+		|			// Si le système crash entre 2 et 3,
+		|			// la clé n'est pas marquée comme traitée
+		|			return response;
+		|		}
+		|	}
+		|
+		|	// Solution avec état intermédiaire
+		|	public class RobustService {
+		|
+		|		public Response process(String key) {
+		|			// Utiliser un statut intermédiaire
+		|			String status = redis.opsForValue().get("status:" + key);
+		|
+		|			if ("COMPLETED".equals(status)) {
+		|				return getCachedResponse(key);
+		|			}
+		|
+		|			if ("PROCESSING".equals(status)) {
+		|				// Attendre ou rejeter
+		|				throw new RetryLaterException();
+		|			}
+		|
+		|			// Atomic set if absent pour le statut PROCESSING
+		|			Boolean set = redis.opsForValue()
+		|				.setIfAbsent("status:" + key, "PROCESSING",
+		|					Duration.ofMinutes(10));
+		|
+		|			if (Boolean.FALSE.equals(set)) {
+		|				throw new RetryLaterException();
+		|			}
+		|
+		|			try {
+		|				Response response = longRunningOperation();
+		|				cache(key, response);
+		|				redis.opsForValue().set("status:" + key, "COMPLETED");
+		|				return response;
+		|
+		|			} catch (Exception e) {
+		|				redis.delete("status:" + key);
+		|				throw e;
+		|			}
+		|		}
+		|	}
+		|
+		--------------------------------------------------------------------------------------------------------
+
+	2. Cohérence des requêtes
+
+		--------------------------------------------------------------------------------------------------------
+		|
+		|	public class RequestConsistencyValidator {
+		|
+		|		public void validateRequest(
+		|				String key,
+		|				String currentRequestHash,
+		|				Consumer<RequestValidation> validation) {
+		|
+		|			String previousHash = redis.opsForValue().get("hash:" + key);
+		|
+		|			if (previousHash != null && !previousHash.equals(currentRequestHash)) {
+		|				// Log de sécurité
+		|				log.warn("Tentative d'utilisation d'une clé d'idempotence " +
+		|						"avec une requête différente. Key: {}", key);
+		|
+		|				// Déclencher alerte
+		|				alertService.sendSecurityAlert(
+		|					"Idempotency key reuse with different request",
+		|					key);
+		|
+		|				// Rejeter la requête
+		|				throw new IdempotencyConflictException(
+		|					"Key already used with different request");
+		|			}
+		|
+		|			validation.accept(new RequestValidation(key, currentRequestHash));
+		|		}
+		|	}
+		|
+		--------------------------------------------------------------------------------------------------------
+
+	3. Performance et scalabilité
+
+		--------------------------------------------------------------------------------------------------------
+		|
+		|	# Configuration pour haute performance
+		|	idempotency:
+		|	  storage: redis-cluster
+		|	  redis:
+		|		addresses:
+		|		  - redis-1:6379
+		|		  - redis-2:6379
+		|		  - redis-3:6379
+		|	  ttl: 7d
+		|	  cache:
+		|		local:
+		|		  enabled: true
+		|		  max-size: 10000
+		|		  expiry: 5m
+		|	  cleanup:
+		|		batch-size: 1000
+		|		schedule: "0 0 2 * * *"
+		|	  monitoring:
+		|		metrics-enabled: true
+		|		slow-threshold: 100ms
+		|
+		--------------------------------------------------------------------------------------------------------
+
+Bonnes pratiques
+
+	1. Génération de clés robustes
+
+		--------------------------------------------------------------------------------------------------------
+		|
+		|	public class IdempotencyKeyGenerator {
+		|
+		|		public static String generateKey(HttpRequest request) {
+		|			// Combiner plusieurs facteurs
+		|			return DigestUtils.sha256Hex(
+		|				request.getMethod() + ":" +
+		|				request.getRequestURI() + ":" +
+		|				request.getHeader("User-Agent") + ":" +
+		|				request.getRemoteAddr() + ":" +
+		|				UUID.randomUUID().toString()
+		|			);
+		|		}
+		|
+		|		public static String generateBusinessKey(PaymentRequest request) {
+		|			// Clé basée sur la logique métier
+		|			return String.format("%s:%s:%s:%s",
+		|				request.getCustomerId(),
+		|				request.getOrderId(),
+		|				request.getAmount(),
+		|				request.getTimestamp().truncatedTo(ChronoUnit.HOURS)
+		|			);
+		|		}
+		|	}
+		|
+		--------------------------------------------------------------------------------------------------------
+
+	2. Monitoring et observabilité
+
+		--------------------------------------------------------------------------------------------------------
+		|
+		|	@Component
+		|	@Slf4j
+		|	public class IdempotencyMetrics {
+		|
+		|		private final MeterRegistry meterRegistry;
+		|
+		|		public void recordIdempotencyHit(String operation, String key) {
+		|			meterRegistry.counter("idempotency.hits",
+		|				"operation", operation,
+		|				"type", "cache_hit"
+		|			).increment();
+		|
+		|			log.debug("Idempotency cache hit for key: {} (operation: {})", key, operation);
+		|		}
+		|
+		|		public void recordIdempotencyMiss(String operation) {
+		|			meterRegistry.counter("idempotency.misses",
+		|				"operation", operation
+		|			).increment();
+		|		}
+		|
+		|		public void recordConflict(String operation, String reason) {
+		|			meterRegistry.counter("idempotency.conflicts",
+		|				"operation", operation,
+		|				"reason", reason
+		|			).increment();
+		|
+		|			log.warn("Idempotency conflict: {} for operation: {}", reason, operation);
+		|		}
+		|
+		|		@Timed(value = "idempotency.processing.time",
+		|			   percentiles = {0.5, 0.95, 0.99})
+		|		public <T> T measureProcessing(Supplier<T> operation) {
+		|			return operation.get();
+		|		}
+		|	}
+		|
+		--------------------------------------------------------------------------------------------------------
+
+Conclusion
+
+	⏺️ Points clés à retenir
+
+		✅ L'idempotence est essentielle dans les systèmes distribués pour garantir la consistance
+		✅ La clé d'idempotence doit être unique, prévisible et stockée de manière fiable
+		✅ Le stockage doit être atomique et distribué (Redis, PostgreSQL avec locking)
+		✅ La gestion des timeouts et des états intermédiaires est cruciale
+		✅ Le cleanup des anciennes clés évite la surcharge de stockage
+
+	🕛 Quand utiliser l'idempotence ?
+
+		Cas d'usage					Nécessité					Exemple
+		-----------------------------------------------------------------------------------
+		Paiements					⚠️ Critique					Débiter une carte
+		-----------------------------------------------------------------------------------
+		Création de commande		✅ Important					Éviter les doublons
+		-----------------------------------------------------------------------------------
+		Envoi d'email				⚠️ Critique					Éviter les spams
+		-----------------------------------------------------------------------------------
+		Mise à jour de stock		✅ Important					Quantités en inventaire
+		-----------------------------------------------------------------------------------
+		Notifications				⚠️ Critique					SMS/Emails de confirmation
+		-----------------------------------------------------------------------------------
+		Appels API externes			✅ Important					Intégrations tierces
+		-----------------------------------------------------------------------------------

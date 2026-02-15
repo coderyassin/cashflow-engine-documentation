@@ -1,0 +1,24 @@
+sequenceDiagram
+    participant Client
+    participant API
+    participant DB as Base de Données
+    participant Storage as Stockage Idempotence
+    
+    Client->>API: 1. POST /payments<br/>Idempotency-Key: abc123
+    
+    API->>Storage: 2. Vérifier si clé existe déjà
+    Storage-->>API: 3. Non trouvée
+    
+    API->>DB: 4. Traitement (débit compte)
+    API->>Storage: 5. Stocker résultat<br/>avec clé abc123
+    
+    API-->>Client: 6. Réponse: Success
+    
+    Note over Client,API: Si le client réessaie avec la même clé...
+    
+    Client->>API: 7. POST /payments<br/>Idempotency-Key: abc123
+    
+    API->>Storage: 8. Vérifier si clé existe
+    Storage-->>API: 9. Oui, voici le résultat
+    
+    API-->>Client: 10. Retourner résultat stocké<br/>(sans retraiter)

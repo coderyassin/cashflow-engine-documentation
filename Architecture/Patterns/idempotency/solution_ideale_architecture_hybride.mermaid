@@ -1,0 +1,25 @@
+flowchart TD
+    A[Requête Client] --> B{Clé dans Redis?}
+    
+    B -->|Oui - CACHE HIT| C[Retourner réponse<br/>depuis Redis<br/>< 5ms]
+    
+    B -->|Non - CACHE MISS| D[Vérifier PostgreSQL<br/>pour audit]
+    
+    D --> E{Existe dans PG?}
+    
+    E -->|Oui| F[Reconstruire réponse<br/>+ Stocker dans Redis]
+    E -->|Non| G[Traitement métier complet]
+    
+    G --> H[Sauvegarde dans PostgreSQL<br/>+ Stockage Redis]
+    H --> I[Retour client]
+    
+    F --> I
+    C --> I
+    
+    subgraph "Redis Tier"
+        J[Cache L1<br/>TTL: 24h<br/>Hot data]
+    end
+    
+    subgraph "PostgreSQL Tier"
+        K[Stockage permanent<br/>Audit<br/>Cold data]
+    end

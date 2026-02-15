@@ -1,0 +1,23 @@
+sequenceDiagram
+    participant P as Producteur
+    participant SR as Schema Registry
+    participant K as Kafka (Broker)
+    participant C as Consommateur
+
+    Note over P,SR: Étape 1: Enregistrement du schéma
+    P->>SR: Je veux produire sur "user-events", voici mon schéma Avro
+    SR->>SR: Vérifie la compatibilité avec les versions précédentes
+    SR-->>P: OK, voici l'ID du schéma: 42
+
+    Note over P,K: Étape 2: Production du message
+    P->>K: Envoie [ID=42] + [Données binaires]
+
+    Note over K,C: Étape 3: Conservation
+    K-->>K: Stocke les bytes (sans le schéma)
+
+    Note over C,SR: Étape 4: Consommation
+    C->>K: Donne-moi les messages
+    K-->>C: Voici [ID=42] + [Données]
+    C->>SR: J'ai reçu l'ID 42, quel est le schéma ?
+    SR-->>C: Voici le schéma associé à l'ID 42
+    C->>C: Décode les données avec ce schéma

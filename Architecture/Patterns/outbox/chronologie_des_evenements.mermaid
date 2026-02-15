@@ -1,0 +1,15 @@
+timeline
+    title Cycle de vie d'un message Outbox
+    section Transaction
+        t0 : Début transaction
+        t1 : Opération métier
+        t2 : Écriture outbox
+        t3 : Commit transaction
+    section Polling
+        t4 : Lecture outbox
+        t5 : Envoi message
+        t6 : Update status
+    section Traitement
+        t7 : Réception consumer
+        t8 : Traitement métier
+        t9 : Ack completion

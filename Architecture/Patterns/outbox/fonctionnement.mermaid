@@ -1,0 +1,61 @@
+flowchart TD
+    subgraph "Application Client"
+        A[Requête HTTP/API]
+    end
+
+    subgraph "Service Métier"
+        B[Contrôleur/Service]
+        C[(Base de Données)]
+        D[Table Outbox]
+    end
+
+    subgraph "Processus de Publication"
+        E[Publisher/Relay]
+        F[Message Broker<br/>Kafka/RabbitMQ]
+        G[Consumer/Subscriber]
+    end
+
+    A --> B
+    
+    B --> H{Début Transaction}
+    H --> I[Opération Métier<br/>Ex: Création Commande]
+    I --> J[Écriture dans Outbox<br/>Même Transaction]
+    J --> K{Commit Transaction}
+    
+    K -->|Succès| C
+    K -->|Succès| D
+    K -->|Échec| L[Rollback Total]
+    
+    D -.->|Lecture périodique| E
+    E --> M{Vérification Status}
+    
+    M -->|Messages PENDING| N[Traitement par Lot]
+    N --> O[Pour chaque message]
+    
+    O --> P{Retry Count < Max?}
+    P -->|Oui| Q[Tentative d'envoi]
+    Q --> R{Envoi Réussi?}
+    
+    R -->|Oui| S[Marquer comme PROCESSED<br/>+ Timestamp]
+    R -->|Non| T[Incémenter Retry Count]
+    
+    T --> U{Retry Count = Max?}
+    U -->|Oui| V[Marquer comme FAILED<br/>+ Log erreur]
+    U -->|Non| W[Laisser PENDING<br/>pour prochain cycle]
+    
+    S --> X[Update Outbox]
+    V --> X
+    W --> X
+    
+    X --> D
+    
+    Q --> F
+    F --> G
+    
+    style A fill:#f9f,stroke:#333,stroke-width:2px
+    style B fill:#bbf,stroke:#333,stroke-width:2px
+    style C fill:#bfb,stroke:#333,stroke-width:2px
+    style D fill:#fbb,stroke:#333,stroke-width:2px
+    style E fill:#ff9,stroke:#333,stroke-width:2px
+    style F fill:#9cf,stroke:#333,stroke-width:2px
+    style G fill:#c9f,stroke:#333,stroke-width:2px

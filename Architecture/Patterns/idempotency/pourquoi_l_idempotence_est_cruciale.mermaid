@@ -1,0 +1,10 @@
+flowchart TD
+    A[Problèmes dans les systèmes distribués] --> B[Réessais automatiques]
+    A --> C[Timeouts ambigus]
+    A --> D[Messages dupliqués]
+    A --> E[Failover/Reprise]
+    
+    B --> B1[Le client réessaie<br/>car pas de réponse]
+    C --> C1[A-t-on réussi avant le timeout?<br/>Impossible de savoir]
+    D --> D1[Kafka/RabbitMQ peuvent<br/>délivrer plusieurs fois]
+    E --> E1[Après crash, rejeu<br/>des opérations]

@@ -1,0 +1,21 @@
+erDiagram
+    OUTBOX_MESSAGE {
+        uuid id PK
+        string aggregate_type
+        string aggregate_id
+        string event_type
+        jsonb payload
+        timestamp created_at
+        timestamp processed_at
+        int retry_count
+        enum status
+        string trace_id
+        string correlation_id
+    }
+    
+    INDEX ||--o{ OUTBOX_MESSAGE : has
+    INDEX {
+        string idx_unprocessed
+        string idx_created_at
+        string idx_status
+    }
