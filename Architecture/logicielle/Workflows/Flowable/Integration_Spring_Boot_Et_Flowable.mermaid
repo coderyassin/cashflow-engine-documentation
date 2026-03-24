@@ -1,0 +1,26 @@
+flowchart TB
+
+    Client -->|HTTP Request| SpringBootApp
+
+    subgraph SpringBootApp
+        Controller
+        ServiceLayer
+        FlowableEngine
+    end
+
+    Controller --> ServiceLayer
+    ServiceLayer -->|Start Process| FlowableEngine
+
+    subgraph FlowableEngine
+        RuntimeService
+        TaskService
+        RepositoryService
+        HistoryService
+    end
+
+    FlowableEngine -->|Persist| Database[(Flowable DB Tables)]
+
+    FlowableEngine -->|Call External API| ExternalService1[Payment Service]
+    FlowableEngine -->|Send Event| ExternalService2[Notification Service]
+
+    Database --> HistoryService

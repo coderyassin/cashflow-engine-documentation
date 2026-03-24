@@ -1,0 +1,98 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL"
+             xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+             xmlns:flowable="http://flowable.org/bpmn"
+             xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI"
+             xmlns:dc="http://www.omg.org/spec/DD/20100524/DC"
+             xmlns:di="http://www.omg.org/spec/DD/20100524/DI"
+             targetNamespace="Banking">
+
+    <process id="credit-process"
+             name="Credit Approval Process"
+             isExecutable="true">
+
+        <startEvent id="startEvent" name="Start"/>
+
+        <serviceTask id="checkEligibility"
+                     name="Check Credit Score"
+                     flowable:delegateExpression="${creditScoreDelegate}" />
+
+        <exclusiveGateway id="eligibilityGateway" name="Eligible?"/>
+
+        <endEvent id="rejectedEnd" name="Rejected"/>
+
+        <userTask id="manualApproval"
+                  name="Bank Analyst Approval"
+                  flowable:assignee="analyst"/>
+
+        <serviceTask id="disbursement"
+                     name="Disburse Funds"
+                     flowable:delegateExpression="${disbursementDelegate}" />
+
+        <serviceTask id="notification"
+                     name="Notify Client"
+                     flowable:delegateExpression="${notificationDelegate}" />
+
+        <endEvent id="approvedEnd" name="Approved"/>
+
+        <!-- FLOWS -->
+
+        <sequenceFlow id="flow1"
+                      sourceRef="startEvent"
+                      targetRef="checkEligibility"/>
+
+        <sequenceFlow id="flow2"
+                      sourceRef="checkEligibility"
+                      targetRef="eligibilityGateway"/>
+
+        <sequenceFlow id="flow3"
+                      sourceRef="eligibilityGateway"
+                      targetRef="manualApproval">
+            <conditionExpression xsi:type="tFormalExpression">
+                <![CDATA[${eligible == true}]]>
+            </conditionExpression>
+        </sequenceFlow>
+
+        <sequenceFlow id="flow4"
+                      sourceRef="eligibilityGateway"
+                      targetRef="rejectedEnd">
+            <conditionExpression xsi:type="tFormalExpression">
+                <![CDATA[${eligible == false}]]>
+            </conditionExpression>
+        </sequenceFlow>
+
+        <sequenceFlow id="flow5"
+                      sourceRef="manualApproval"
+                      targetRef="disbursement"/>
+
+        <sequenceFlow id="flow6"
+                      sourceRef="disbursement"
+                      targetRef="notification"/>
+
+        <sequenceFlow id="flow7"
+                      sourceRef="notification"
+                      targetRef="approvedEnd"/>
+
+    </process>
+
+    <bpmndi:BPMNDiagram id="BPMNDiagram_credit-process">
+        <bpmndi:BPMNPlane id="BPMNPlane_credit-process" bpmnElement="credit-process">
+            <!-- ⚠️ IMPORTANT : utilisez dc:Bounds, PAS omgdc:Bounds -->
+            <bpmndi:BPMNShape id="shape_startEvent" bpmnElement="startEvent">
+                <dc:Bounds x="100" y="100" width="30" height="30" />
+            </bpmndi:BPMNShape>
+            <bpmndi:BPMNShape id="shape_checkEligibility" bpmnElement="checkEligibility">
+                <dc:Bounds x="180" y="80" width="100" height="60" />
+            </bpmndi:BPMNShape>
+            <!-- ... autres formes ... -->
+
+            <bpmndi:BPMNEdge id="edge_flow1" bpmnElement="flow1">
+                <di:waypoint x="130" y="115" />
+                <di:waypoint x="180" y="110" />
+            </bpmndi:BPMNEdge>
+            <!-- ... autres connexions ... -->
+        </bpmndi:BPMNPlane>
+    </bpmndi:BPMNDiagram>
+
+</definitions>

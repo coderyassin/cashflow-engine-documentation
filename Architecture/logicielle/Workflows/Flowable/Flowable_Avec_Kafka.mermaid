@@ -1,0 +1,8 @@
+flowchart LR
+
+    OrderService -->|Publish OrderCreated| Kafka
+    Kafka --> FlowableOrchestrator
+
+    FlowableOrchestrator -->|Start Process| FlowableEngine
+    FlowableEngine --> PaymentService
+    FlowableEngine --> NotificationService

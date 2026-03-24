@@ -1,0 +1,8 @@
+flowchart LR
+    A[Start] --> B[Check Credit Score]
+    B --> C{Eligible?}
+    C -->|false| D[Rejected]
+    C -->|true| E[Bank Analyst Approval]
+    E --> F[Disburse Funds]
+    F --> G[Notify Client]
+    G --> H[Approved]

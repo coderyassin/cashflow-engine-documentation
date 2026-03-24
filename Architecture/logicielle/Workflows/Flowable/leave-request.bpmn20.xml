@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:flowable="http://flowable.org/bpmn" xmlns:open-bpmn="http://open-bpmn.org/XMLSchema" targetNamespace="LeaveRequest">
+  <process id="leaveRequestProcess" isExecutable="true" name="Leave Request Process" processType="Public">
+    <documentation id="documentation_8Fo9IQ"/>
+    <extensionElements>
+      <open-bpmn:auto-align/>
+    </extensionElements>
+    <startEvent id="startEvent">
+      <documentation id="documentation_QHB0ew"/>
+    </startEvent>
+    <sequenceFlow sourceRef="startEvent" targetRef="submitTask">
+      <documentation id="documentation_9eOh1Q"/>
+    </sequenceFlow>
+    <serviceTask flowable:class="com.example.workflow.SubmitLeaveDelegate" id="submitTask" name="Submit Leave">
+      <documentation id="documentation_FuQ0Bg"/>
+    </serviceTask>
+    <sequenceFlow sourceRef="submitTask" targetRef="managerApproval">
+      <documentation id="documentation_m9lTiw"/>
+    </sequenceFlow>
+    <userTask flowable:candidateGroups="managers" id="managerApproval" name="Manager Approval">
+      <documentation id="documentation_Xvt0KQ"/>
+    </userTask>
+    <sequenceFlow sourceRef="managerApproval" targetRef="hrApproval">
+      <documentation id="documentation_laFRRg"/>
+    </sequenceFlow>
+    <userTask flowable:candidateGroups="hr" id="hrApproval" name="HR Approval">
+      <documentation id="documentation_OiVJhA"/>
+    </userTask>
+    <sequenceFlow sourceRef="hrApproval" targetRef="notifyTask">
+      <documentation id="documentation_6OdkZw"/>
+    </sequenceFlow>
+    <serviceTask flowable:class="com.example.workflow.NotificationDelegate" id="notifyTask" name="Notify Employee">
+      <documentation id="documentation_9LwqUQ"/>
+    </serviceTask>
+    <sequenceFlow sourceRef="notifyTask" targetRef="endEvent">
+      <documentation id="documentation_0VfGSw"/>
+    </sequenceFlow>
+    <endEvent id="endEvent">
+      <documentation id="documentation_No0vvA"/>
+    </endEvent>
+  </process>
+  <bpmndi:BPMNDiagram id="BPMNDiagram_1" name="OpenBPMN Diagram" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI">
+    <bpmndi:BPMNPlane bpmnElement="leaveRequestProcess" id="BPMNPlane_qQOJiA">
+      <bpmndi:BPMNShape bpmnElement="startEvent" id="BPMNShape_h0MP2w">
+        <dc:Bounds height="36.0" width="36.0" x="0.0" y="0.0" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC"/>
+        <bpmndi:BPMNLabel id="BPMNLabel_Mt71rA">
+          <dc:Bounds height="20.0" width="100.0" x="-32.0" y="39.0" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC"/>
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape bpmnElement="submitTask" id="BPMNShape_CzH1pQ">
+        <dc:Bounds height="50.0" width="110.0" x="0.0" y="0.0" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape bpmnElement="managerApproval" id="BPMNShape_QYAlvg">
+        <dc:Bounds height="50.0" width="110.0" x="0.0" y="0.0" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape bpmnElement="hrApproval" id="BPMNShape_JO7VWQ">
+        <dc:Bounds height="50.0" width="110.0" x="0.0" y="0.0" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape bpmnElement="notifyTask" id="BPMNShape_9lKvMg">
+        <dc:Bounds height="50.0" width="110.0" x="0.0" y="0.0" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape bpmnElement="endEvent" id="BPMNShape_gNyo5g">
+        <dc:Bounds height="36.0" width="36.0" x="0.0" y="0.0" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC"/>
+        <bpmndi:BPMNLabel id="BPMNLabel_JKuhQg">
+          <dc:Bounds height="20.0" width="100.0" x="-32.0" y="39.0" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC"/>
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</definitions>

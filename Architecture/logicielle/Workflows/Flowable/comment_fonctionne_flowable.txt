@@ -1,0 +1,299 @@
+                                                                 --------------------
+                                                                |                    |
+                                                                |      Flowable      |
+                                                                |                    |
+                                                                 --------------------
+
+ 
+
+1️⃣ C’est quoi Flowable ?
+
+  Flowable est un moteur BPMN 2.0 open-source.
+  Il permet de :
+    
+    . Définir des processus métier (workflows)
+    . Les exécuter
+    . Gérer les tâches humaines
+    . Gérer les états du processus
+    . Orchestrer des appels systèmes
+
+
+______________________________________________________________________________________________________________________________
+
+
+2️⃣ Comment Flowable fonctionne (internes)
+
+    Flowable repose sur 4 concepts clés :
+
+    🔹 1. BPMN 2.0
+
+      Les workflows sont définis en XML BPMN.
+
+      Exemple de composants BPMN :
+
+        . StartEvent
+        . UserTask
+        . ServiceTask
+        . ExclusiveGateway
+        . ParallelGateway
+        . EndEvent
+      
+      Le fichier .bpmn20.xml est déployé dans le moteur.
+
+    🔹 2. Process Definition
+
+      Quand tu déploies un BPMN :
+
+        ➡️ Flowable crée une ProcessDefinition
+        ➡️ Elle est stockée en base de données
+        ➡️ Versionnée automatiquement
+
+    🔹 3. Process Instance
+
+      Quand tu démarres un workflow :
+
+         ────────────────────────────────────────────────────────────
+        ┃                                                            ┃
+        ┃ runtimeService.startProcessInstanceByKey("order-process"); ┃
+        ┃                                                            ┃
+         ────────────────────────────────────────────────────────────
+
+        ➡️ Flowable crée une ProcessInstance
+        ➡️ Chaque instance a :
+          . un ID unique
+          . un état
+          . des variables
+
+    🔹 4. Base de données
+
+      Flowable est 100% DB-driven.
+
+      Il crée environ 25+ tables :
+
+        | Table    | Rôle                     |
+        | -------- | ------------------------ |
+        | ACT_RE_* | Repository (définitions) |
+        | ACT_RU_* | Runtime                  |
+        | ACT_HI_* | Historique               |
+        | ACT_ID_* | Identity                 |
+
+
+______________________________________________________________________________________________________________________________
+
+
+3️⃣ Architecture interne Flowable
+
+  Flowable est composé de plusieurs engines :
+
+    | Engine         | Rôle              |
+    | -------------- | ----------------- |
+    | Process Engine | BPMN              |
+    | DMN Engine     | règles            |
+    | CMMN Engine    | case management   |
+    | Form Engine    | formulaires       |
+    | Content Engine | gestion documents |
+
+
+______________________________________________________________________________________________________________________________
+
+
+4️⃣ Comment Flowable s’intègre avec Spring Boot
+
+  Flowable fournit :
+
+     ────────────────────────────────────────
+    ┃  flowable-spring-boot-starter-process  ┃
+     ────────────────────────────────────────
+
+    Spring Boot va :
+
+     1. Auto-configurer le ProcessEngine
+     2. Créer les tables automatiquement
+     3. Scanner les fichiers BPMN
+     4. Exposer les services :
+       . RuntimeService
+       . TaskService
+       . RepositoryService
+       .  HistoryService
+
+
+______________________________________________________________________________________________________________________________
+
+
+5️⃣ Étapes d’intégration
+
+  ✅ Étape 1 — Ajouter la dépendance
+
+     ────────────────────────────────────────────────────────────────────────────────
+    ┃        <dependency>                                                            ┃
+    ┃            <groupId>org.flowable</groupId>                                     ┃
+    ┃            <artifactId>flowable-spring-boot-starter-process</artifactId>       ┃
+    ┃        </dependency>                                                           ┃
+     ────────────────────────────────────────────────────────────────────────────────
+
+  ✅ Étape 2 — Configuration
+
+     ────────────────────────────────────────
+    ┃   flowable:                            ┃
+    ┃        database-schema-update: true    ┃
+    ┃        check-process-definitions: true ┃
+     ────────────────────────────────────────
+
+  ✅ Étape 3 — Ajouter ton BPMN
+
+     ────────────────────────────────────────────────────────────
+    ┃    src/main/resources/processes/order-process.bpmn20.xml   ┃
+     ────────────────────────────────────────────────────────────
+    
+    Flowable va le déployer automatiquement.
+
+  ✅ Étape 4 — Démarrer un process
+
+     ────────────────────────────────────────────────────────────────────────────────
+    ┃        @Autowired                                                              ┃
+    ┃        private RuntimeService runtimeService;                                  ┃
+    ┃                                                                                ┃
+    ┃        public void start() {                                                   ┃
+    ┃            runtimeService.startProcessInstanceByKey("order-process");          ┃
+    ┃        }                                                                       ┃
+     ────────────────────────────────────────────────────────────────────────────────
+
+  ✅ Étape 5 — Gérer les User Tasks
+
+     ────────────────────────────────────────────────────────────
+    ┃    List<Task> tasks = taskService.createTaskQuery()        ┃
+    ┃    .taskAssignee("yassin")                                 ┃
+    ┃    .list();                                                ┃
+     ────────────────────────────────────────────────────────────
+
+
+______________________________________________________________________________________________________________________________
+
+
+6️⃣ Vision Architecture
+
+  🎯 Flowable doit être :
+
+    . Un moteur d’orchestration
+    . Pas un moteur métier
+    . Pas un microservice isolé (sauf cas très avancé)
+
+  🧠 Deux patterns d’intégration
+
+   🔹 Pattern 1 — Embedded Engine
+
+     Flowable est intégré dans un microservice.
+
+       ✔ Simple
+       ✔ Transaction unique
+       ✔ Pas de latence réseau
+
+    🔹 Pattern 2 — Workflow Service dédié
+
+      Flowable est un microservice séparé.
+
+        ✔ Scalabilité
+        ✔ Centralisation
+        ❌ Complexité
+        ❌ Latence
+
+
+______________________________________________________________________________________________________________________________
+
+
+7️⃣ Exemple d’architecture microservices avec Flowable
+
+  Supposons :
+
+    . order-service
+    . payment-service
+    . notification-service
+
+       ────────────────────────────────────────
+      ┃          Order Created                 ┃
+      ┃              ↓                         ┃
+      ┃          Call Payment Service          ┃
+      ┃              ↓                         ┃
+      ┃          If OK → Notify                ┃
+      ┃          If KO → Cancel                ┃
+       ────────────────────────────────────────
+
+
+______________________________________________________________________________________________________________________________
+
+
+8️⃣ Exemple de workflow
+
+  📌 Workflow : Validation d’une demande de congé
+
+    Étapes :
+
+      1. Employé soumet demande
+      2. Manager valide
+      3. RH valide
+      4. Notification finale
+
+    En BPMN :
+      
+       ────────────────────────────────────────
+      ┃  (Start)                               ┃
+      ┃      ↓                                 ┃
+      ┃  Submit Leave Request (Service Task)   ┃
+      ┃      ↓                                 ┃
+      ┃  Manager Approval (User Task)          ┃
+      ┃      ↓                                 ┃
+      ┃  HR Approval (User Task)               ┃
+      ┃      ↓                                 ┃
+      ┃  Send Notification (Service Task)      ┃
+      ┃      ↓                                 ┃
+      ┃  (End)                                 ┃
+       ────────────────────────────────────────
+
+
+______________________________________________________________________________________________________________________________
+
+
+9️⃣ Schéma – Intégration Spring Boot + Flowable
+
+  Voir le diagramme Integration_Spring_Boot_Et_Flowable.mermaid 
+
+
+______________________________________________________________________________________________________________________________
+
+
+1️⃣​0️⃣​ Architecture avancée (Event Driven)
+
+  Flowable avec Kafka
+
+    Voir le diagramme Flowable_Avec_Kafka.mermaid 
+
+
+______________________________________________________________________________________________________________________________
+
+
+🔥 Points critiques
+
+  1. ❗ Pas de logique métier lourde dans les ServiceTask
+  2. ❗ La gestion rigoureuse des transactions
+  3. ❗ Utilisation de Async Service Tasks pour éviter le blocage
+  4. ❗ Activation de l’historique pour l'audit
+  5. ❗ Attention au couplage fort
+
+ 
+______________________________________________________________________________________________________________________________
+
+
+🏆 Quand utiliser Flowable ?
+
+  Utilise-le si :
+
+    . Tu as des workflows complexes
+    . Beaucoup de branches conditionnelles
+    . Des validations humaines
+    . Des processus longs (plusieurs jours)
+
+  Ne l’utilise PAS si :
+
+   . Workflow très simple
+   . Logique purement technique
+
