@@ -7,6 +7,8 @@ C’est un moteur qui exécute un workflow (suite d’étapes) en gardant son é
     . Si ton app crash → tout est perdu ❌
     . Avec un workflow durable → il reprend là où il s’est arrêté ✅
 
+___
+
 🔹 2. Exemple concret
 
 Imagine un processus e-commerce :
@@ -19,6 +21,8 @@ Imagine un processus e-commerce :
 
     . Sans orchestration durable → tu dois tout recommencer 😓
     . Avec orchestration durable → il reprend directement à l’étape 3 ✅
+
+___
 
 🔹 3. Pourquoi “durable” ?
 
