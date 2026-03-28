@@ -32,3 +32,35 @@ Parce que :
     . Chaque étape est traçable
     . Les retries sont automatiques
     . Tu peux gérer des workflows qui durent minutes, heures, voire jours
+
+___
+
+🔹 4. Orchestration vs Chorégraphie
+
+👉 Orchestration :
+
+    . Un orchestrateur central contrôle tout    
+    . Il décide : “appelle ce service, puis celui-ci…”
+    . Plus simple à comprendre et monitorer
+
+👉 Chorégraphie :
+
+    . Chaque service réagit aux événements
+    . Pas de chef d’orchestre
+    . Plus flexible mais plus complexe à debugger
+
+___
+
+🔹 5. À quoi ça sert vraiment (cas réels)
+
+    . Processus métier long (banque, assurance, RH)
+    . Pipelines data / batch
+    . CI/CD
+    . Traitement asynchrone complexe
+    . Intégration entre systèmes (APIs externes)
+
+___
+
+🔹 6. Résumé rapide
+
+👉 Orchestration durable = Exécuter des workflows complexes de manière fiable, persistante et résiliente, même en cas de crash.
